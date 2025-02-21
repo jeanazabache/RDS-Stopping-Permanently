@@ -1,0 +1,338 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+
+#+─────────────────────────────────────────+──────────────────────────+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────+
+#| Resource                                | Type                     | Description                                                                                                                                                                   |
+#+=========================================+==========================+===============================================================================================================================================================================+
+#| StartStateMachineExecutionLambdaPolicy  | AWS::IAM::ManagedPolicy  | Allows rds:AddTagsToResource, rds:ListTagsForResource, rds:DescribeDBInstances and states:StartExecution for any resource. Linked with StartStateMachineExecutionLambdaRole.  |
+#+─────────────────────────────────────────+──────────────────────────+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────+
+#| StopRdsInstanceLambdaPolicy             | AWS::IAM::ManagedPolicy  | Allows rds:AddTagsToResource, rds:ListTagsForResource, rds:DescribeDBInstances, rds:StopDBInstance for any resource. Linked with StopRdsInstanceLambdaRole.                   |
+#+─────────────────────────────────────────+──────────────────────────+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────+
+#| RetrieveRdsInstanceStateLambdaPolicy    | AWS::IAM::ManagedPolicy  | Allows rds:AddTagsToResource, rds:ListTagsForResource and rds:DescribeDBInstances for any resource. Linked with RetrieveRdsInstanceStateLambdaRole.                           |
+#+─────────────────────────────────────────+──────────────────────────+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────+
+#| StartStateMachineExecutionLambdaRole    | AWS::IAM::Role           | Lambda basic execution role.To be assumed by StartStateMachineExecutionLambda                                                                                                 |
+#+─────────────────────────────────────────+──────────────────────────+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────+
+#| StopRdsInstanceLambdaRole               | AWS::IAM::Role           | Lambda basic execution role. To be assumed by RetrieveRdsInstanceStateLambda                                                                                                  |
+#+─────────────────────────────────────────+──────────────────────────+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────+
+#| RetrieveRdsInstanceStateLambdaRole      | AWS::IAM::Role           | Lambda basic execution role. To be assumed by StopRdsInstanceLambda                                                                                                           |
+#+─────────────────────────────────────────+──────────────────────────+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────+
+#| StopRdsInstanceStateMachineRole         | AWS::IAM::Role           | Allows lambda:InvokeFunction and multiple log: operations. To be assumed by StepFunction                                                                                      |
+#+─────────────────────────────────────────+──────────────────────────+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────+
+
+  StartStateMachineExecutionLambdaPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - rds:ListTagsForResource
+          Resource: "*"
+          Condition:
+            StringEquals:
+             'aws:ResourceTag/auto-restart-protection': 'yes'
+        - Effect: Allow
+          Action:
+          - states:StartExecution
+          Resource: !Ref StopRdsInstanceStateMachine
+      Roles:
+      - Ref: StartStateMachineExecutionLambdaRole
+  StopRdsInstanceLambdaPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - rds:StopDBInstance
+          - rds:StopDBCluster
+          Resource: "*"
+          Condition:
+            StringEquals:
+             'aws:ResourceTag/auto-restart-protection': 'yes'
+      Roles:
+      - Ref: StopRdsInstanceLambdaRole
+  RetrieveRdsInstanceStateLambdaPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - rds:ListTagsForResource
+          - rds:DescribeDBInstances
+          - rds:DescribeDBClusters
+          Resource: "*"
+          Condition:
+            StringEquals:
+             'aws:ResourceTag/auto-restart-protection': 'yes'
+      Roles:
+      - Ref: RetrieveRdsInstanceStateLambdaRole
+  StartStateMachineExecutionLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Path: "/"
+      Tags:
+      - Key: Project
+        Value: RdsAutoRestartProtection
+  StopRdsInstanceLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Path: "/"
+      Tags:
+      - Key: Project
+        Value: RdsAutoRestartProtection
+  RetrieveRdsInstanceStateLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Path: "/"
+      Tags:
+      - Key: Project
+        Value: RdsAutoRestartProtection
+  StopRdsInstanceStateMachineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - states.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Policies:
+      - PolicyName: RdsAutoStartProtectionStepFunctionsPolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - logs:CreateLogDelivery
+            - logs:GetLogDelivery
+            - logs:UpdateLogDelivery
+            - logs:DeleteLogDelivery
+            - logs:ListLogDeliveries
+            - logs:PutResourcePolicy
+            - logs:DescribeResourcePolicies
+            - logs:DescribeLogGroups
+            Resource: "*"
+          - Effect: Allow
+            Action:
+            - lambda:InvokeFunction
+            Resource:
+            - Fn::GetAtt:
+              - StopRdsInstanceLambda
+              - Arn
+            - Fn::GetAtt:
+              - RetrieveRdsInstanceStateLambda
+              - Arn
+          - Effect: Allow
+            Action:
+            - sns:Publish
+            Resource: !Ref SnsTopicWorkFlowNotification
+      Path: "/"
+      Tags:
+      - Key: Project
+        Value: RdsAutoRestartProtection
+
+#+───────────────────────────────+──────────────────+───────────────────────────────────────────────────+
+#| Resource                      | Type             | Description                                       |
+#+===============================+==================+===================================================+
+#| SnsTopicWorkFlowNotification  | AWS::SNS::Topic  | This is where the execution notification is sent  |
+#+───────────────────────────────+──────────────────+───────────────────────────────────────────────────+
+
+  SnsTopicWorkFlowNotification:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: RDS auto-restart protection
+      Tags:
+      - Key: Project
+        Value: RdsAutoRestartProtection
+
+#+────────────────────────────────────────────────+──────────────────────────+───────────────────────────────────────────────────────────────────────+
+#| Resource                                       | Type                     | Description                                                           |
+#+================================================+==========================+=======================================================================+
+#| StartStateMachineExecutionLambda               | AWS::Lambda::Function    | Lambda function to start the Step Functions state machine execution.  |
+#+────────────────────────────────────────────────+──────────────────────────+───────────────────────────────────────────────────────────────────────+
+#| RetrieveRdsInstanceStateLambda                 | AWS::Lambda::Function    | Lambda function to retrieve the state of an RDS instance              |
+#+────────────────────────────────────────────────+──────────────────────────+───────────────────────────────────────────────────────────────────────+
+#| RetrieveRdsInstanceStateLambda                 | AWS::Lambda::Function    | Lambda function to stop an RDS instance                               |
+#+────────────────────────────────────────────────+──────────────────────────+───────────────────────────────────────────────────────────────────────+
+#| PermissionForEventsToInvokeLambda              | AWS::Lambda::Permission  | Permission for EVENT to invoke StartStateMachineExecutionLambda       |
+#+────────────────────────────────────────────────+──────────────────────────+───────────────────────────────────────────────────────────────────────+
+
+
+  StartStateMachineExecutionLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket:
+          Ref: s3Bucket
+        S3Key: start-statemachine-execution-lambda.zip
+      Description: Lambda function to start the Step Functions state machine execution
+      Handler: lambda_function.lambda_handler
+      Environment:
+        Variables:
+          STEPFUNCTION_ARN:
+            Ref: StopRdsInstanceStateMachine
+      Role:
+        Fn::GetAtt:
+        - StartStateMachineExecutionLambdaRole
+        - Arn
+      Runtime: python3.9
+      Tags:
+      - Key: Project
+        Value: RdsAutoRestartProtection
+  RetrieveRdsInstanceStateLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket:
+          Ref: s3Bucket
+        S3Key: retrieve-rds-instance-state-lambda.zip
+      Description: Lambda function to retrieve the state of an RDS instance
+      Handler: lambda_function.lambda_handler
+      Role:
+        Fn::GetAtt:
+        - RetrieveRdsInstanceStateLambdaRole
+        - Arn
+      Runtime: python3.9
+      Tags:
+      - Key: Project
+        Value: RdsAutoRestartProtection
+  StopRdsInstanceLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket:
+          Ref: s3Bucket
+        S3Key: stop-rds-instance-lambda.zip
+      Description: Lambda function to stop an RDS instance
+      Handler: lambda_function.lambda_handler
+      Role:
+        Fn::GetAtt:
+        - StopRdsInstanceLambdaRole
+        - Arn
+      Runtime: python3.9
+      Tags:
+      - Key: Project
+        Value: RdsAutoRestartProtection
+  PermissionForEventsToInvokeLambda: 
+    Type: AWS::Lambda::Permission
+    Properties: 
+      FunctionName: !GetAtt StartStateMachineExecutionLambda.Arn
+      Action: "lambda:InvokeFunction"
+      Principal: "events.amazonaws.com"
+      SourceArn: !GetAtt RdsAutoRestartEventRule.Arn 
+
+# +-------------------+----------------------------------+------------------------------------------------------+
+# | AWS StepFunctions |                                  |                                                      |
+# +-------------------+----------------------------------+------------------------------------------------------+
+# | Resource          | Type                             | Description                                          |
+# +-------------------+----------------------------------+------------------------------------------------------+
+# | StepFunction      | AWS::StepFunctions::StateMachine | State machine that orchestrates the force stop flow. |
+# +-------------------+----------------------------------+------------------------------------------------------+
+
+  StopRdsInstanceStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      DefinitionS3Location:
+        Bucket:
+          Ref: s3Bucket
+        Key: stop-rds-instance-state-machine.json
+      DefinitionSubstitutions:
+        RetrieveRdsInstanceStateLambda:
+          Fn::GetAtt:
+          - RetrieveRdsInstanceStateLambda
+          - Arn
+        StopRdsInstanceLambda:
+          Fn::GetAtt:
+          - StopRdsInstanceLambda
+          - Arn
+        SnsTopicWorkFlowNotification: !Ref SnsTopicWorkFlowNotification
+      RoleArn:
+        Fn::GetAtt:
+        - StopRdsInstanceStateMachineRole
+        - Arn
+      StateMachineType: STANDARD
+      Tags:
+      - Key: Project
+        Value: RdsAutoRestartProtection
+
+# | Resource                 | Type                  | Description                          |
+# |--------------------------|-----------------------|--------------------------------------|
+# | RdsNotificationEventBus  | AWS::Events::EventBus | A new EventBus to receive RDS events |
+# | RdsNotificationEventRule | AWS::Events::Rule     | A rule to capture RDS events         |
+# +------------------------------------------------------------------------------------------
+
+  RdsAutoRestartEventBusPolicy: 
+    Type: AWS::Events::EventBusPolicy
+    Properties: 
+      StatementId: "rdsAutoRestartPolicy"
+      Statement: 
+        Effect: "Allow"
+        Principal: 
+          AWS: !Ref "AWS::AccountId"
+        Action: "events:PutEvents"
+        Resource: !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/default"
+
+  
+  RdsAutoRestartEventRule:
+    Type: AWS::Events::Rule
+    Properties: 
+      EventPattern: 
+        source: 
+          - "aws.rds"
+        detail-type:
+          - "RDS DB Instance Event"
+          - "RDS DB Cluster Event" 
+      State: "ENABLED"
+      Targets: 
+        - 
+          Arn: !GetAtt StartStateMachineExecutionLambda.Arn 
+          Id: "StartStateMachineExecutionLambda"
+    
+
+
+Parameters:
+  s3Bucket:
+    Type: String
+    Description: S3 Bucket where your Lambda functions and StepFunctions state machines    are stored.
