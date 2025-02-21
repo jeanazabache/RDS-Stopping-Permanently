@@ -9,9 +9,8 @@ The solution is deployed using AWS CloudFormation
 Keep in mind, application is deployed per region per account.
 
 1. Create an S3 bucket to upload your artifacts. For more information, see [create bucket](https://docs.aws.amazon.com/AmazonS3/latest/user-guide/create-bucket.html).
-2. Upload the following files to the **root** of the newly created S3 bucket:
-* `stop-rds-instance-state-machine.json` under `sources/stepfunctions-code`
-* 3 `.zip` files under `sources/lambda-code-deployment-packages`
+2. Upload to the  **root** of the newly created S3 bucket:* `deployment/master-template.yaml`  
+3. Upload following files to the **root** `.zips` ['retrieve-rds-instance-state-lambda.zip','start-statemachine-execution-lambda.zip','stop-rds-instance-lambda.zip','stop-rds-instance-state-machine.json']
 > Lambda `.py` files are also available under `sources/lambda-code`. For more information on how to create a .zip deployment package, see [python package](https://docs.aws.amazon.com/lambda/latest/dg/python-package.html).
 3. In AWS CloudFormation, start deploying deployment/master-template.yaml. For more information, see [create stack](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/cfn-console-create-stack.html).
 4. Finally, tag your RDS instance with `auto-restart-protection = yes`. Instances with the tag, will be automatically stopped once restarted after 7-days.
